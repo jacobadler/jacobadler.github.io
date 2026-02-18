@@ -1,0 +1,1476 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pulse–Tone Continuum</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: #0a0a0f;
+    color: #e0e0e8;
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    overflow: hidden;
+  }
+
+  .container {
+    width: 580px;
+    max-width: 95vw;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    align-items: center;
+  }
+
+  .controls-row {
+    display: flex;
+    gap: 16px;
+    width: 100%;
+    align-items: flex-start;
+  }
+
+  .input-group {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    flex: 1;
+  }
+
+  label {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #888;
+  }
+
+  input[type="text"], select {
+    background: #16161e;
+    border: 1px solid #2a2a3a;
+    border-radius: 6px;
+    color: #e0e0e8;
+    font-family: 'Consolas', 'SF Mono', monospace;
+    font-size: 15px;
+    padding: 10px 12px;
+    outline: none;
+    transition: border-color 0.15s;
+  }
+
+  input[type="text"]:focus, select:focus { border-color: #5a5aff; }
+  input[type="text"].error { border-color: #ff4444; }
+
+  .error-msg {
+    font-size: 11px;
+    color: #ff4444;
+    min-height: 16px;
+  }
+
+  select {
+    cursor: pointer;
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23888'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+    padding-right: 32px;
+  }
+
+  .viz-section {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .viz-toggles {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 3px;
+    width: 100%;
+  }
+
+  .viz-btn {
+    background: #16161e;
+    border: 1px solid #2a2a3a;
+    color: #888;
+    font-family: inherit;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    padding: 5px 10px;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  .viz-btn:hover { border-color: #5a5aff; color: #c0c0e0; }
+  .viz-btn.active { background: #5a5aff; border-color: #5a5aff; color: #fff; }
+
+  canvas {
+    width: 100%;
+    height: 320px;
+    border-radius: 8px;
+    background: #0e0e16;
+    display: block;
+  }
+
+  .slider-section {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .slider-track {
+    width: 100%;
+    height: 48px;
+    position: relative;
+    display: flex;
+    align-items: center;
+  }
+
+  input[type="range"] {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    height: 6px;
+    background: linear-gradient(90deg, #2a2a4a, #5a5aff);
+    border-radius: 3px;
+    outline: none;
+    cursor: pointer;
+  }
+
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 24px; height: 24px; border-radius: 50%;
+    background: #e0e0e8;
+    box-shadow: 0 0 10px rgba(90, 90, 255, 0.5);
+    cursor: grab;
+  }
+
+  input[type="range"]::-moz-range-thumb {
+    width: 24px; height: 24px; border-radius: 50%;
+    background: #e0e0e8;
+    box-shadow: 0 0 10px rgba(90, 90, 255, 0.5);
+    border: none; cursor: grab;
+  }
+
+  input[type="range"]:active::-webkit-slider-thumb { cursor: grabbing; }
+  input[type="range"]:active::-moz-range-thumb { cursor: grabbing; }
+
+  .slider-labels {
+    width: 100%;
+    display: flex;
+    justify-content: space-between;
+    font-size: 10px;
+    color: #555;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+
+  .freq-display {
+    font-family: 'Consolas', 'SF Mono', monospace;
+    font-size: 32px;
+    font-weight: 300;
+    letter-spacing: -0.02em;
+    color: #c0c0ff;
+  }
+
+  .freq-unit { font-size: 14px; color: #666; margin-left: 4px; }
+
+  .buttons-row {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+  }
+
+  .start-btn, .export-btn {
+    border: none; color: #fff; font-family: inherit;
+    font-size: 13px; text-transform: uppercase;
+    letter-spacing: 0.1em; padding: 10px 32px;
+    border-radius: 6px; cursor: pointer;
+    transition: background 0.15s;
+  }
+
+  .start-btn { background: #5a5aff; }
+  .start-btn:hover { background: #4a4ae8; }
+  .start-btn.active { background: #ff4466; }
+  .start-btn.active:hover { background: #e83355; }
+
+  .export-btn { background: #2a2a3a; padding: 10px 20px; }
+  .export-btn:hover { background: #3a3a4a; }
+  .export-btn:disabled { opacity: 0.4; cursor: default; }
+</style>
+</head>
+<body>
+
+<div class="container">
+  <div class="controls-row">
+    <div class="input-group" style="flex:2">
+      <label for="ratioInput">Enter Ratio (e.g., 3:2 or 7:5:4)</label>
+      <input type="text" id="ratioInput" value="5:4:3" spellcheck="false" autocomplete="off">
+      <div class="error-msg" id="ratioError"></div>
+    </div>
+    <div class="input-group" style="flex:1">
+      <label for="timbreSelect">Timbre</label>
+      <select id="timbreSelect">
+        <option value="sine">sine</option>
+        <option value="square">square</option>
+        <option value="triangle">triangle</option>
+        <option value="sawtooth" selected>sawtooth</option>
+        <option value="click">click</option>
+        <option value="kick">kick</option>
+        <option value="snare">snare</option>
+        <option value="hihat">hihat</option>
+        <option value="bell">bell</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="viz-section">
+    <div class="viz-toggles">
+      <button class="viz-btn active" data-mode="waves">Waves</button>
+      <button class="viz-btn" data-mode="lissajous">Lissajous</button>
+      <button class="viz-btn" data-mode="geometry">Geometry</button>
+      <button class="viz-btn" data-mode="spirograph">Spirograph</button>
+      <button class="viz-btn" data-mode="harmonograph">Harmonograph</button>
+      <button class="viz-btn" data-mode="cymatic">Cymatic</button>
+      <button class="viz-btn" data-mode="ring">Ring</button>
+      <button class="viz-btn" data-mode="pendulum">Pendulum</button>
+      <button class="viz-btn" data-mode="fractal">Fractal</button>
+      <button class="viz-btn" data-mode="tensor">Tensor</button>
+    </div>
+    <canvas id="vizCanvas"></canvas>
+  </div>
+
+  <div class="slider-section">
+    <div class="slider-track">
+      <input type="range" id="freqSlider" min="0" max="1" step="0.001" value="0.5">
+    </div>
+    <div class="slider-labels">
+      <span>Pulse</span>
+      <span>Tone</span>
+    </div>
+  </div>
+
+  <div class="freq-display">
+    <span id="freqValue">31.62</span><span class="freq-unit">Hz</span>
+  </div>
+
+  <div class="buttons-row">
+    <button class="start-btn" id="startBtn">Start</button>
+    <button class="export-btn" id="exportBtn">Export WAV</button>
+  </div>
+</div>
+
+<script>
+// ============================================================
+//  parseRatio
+// ============================================================
+function parseRatio(str) {
+  const trimmed = str.trim();
+  if (!trimmed) return { error: 'Enter a ratio' };
+  const parts = trimmed.split(':');
+  if (parts.length < 1 || parts.length > 8)
+    return { error: 'Use 1–8 colon-separated values' };
+  const nums = [];
+  for (const p of parts) {
+    if (!/^\d+$/.test(p.trim())) return { error: 'Positive integers only' };
+    const n = parseInt(p.trim(), 10);
+    if (n <= 0) return { error: 'No zeros allowed' };
+    nums.push(n);
+  }
+  const gcd = (a, b) => (b === 0 ? a : gcd(b, a % b));
+  const overall = nums.reduce((a, b) => gcd(a, b));
+  return { values: nums.map(n => n / overall) };
+}
+
+// ============================================================
+//  Frequency mapping
+// ============================================================
+const FREQ_MIN = 0.25;
+const FREQ_MAX = 4000;
+function sliderToFreq(t) { return FREQ_MIN * Math.pow(FREQ_MAX / FREQ_MIN, t); }
+function freqToSlider(f) { return Math.log(f / FREQ_MIN) / Math.log(FREQ_MAX / FREQ_MIN); }
+function formatFreq(f) {
+  if (f < 10) return f.toFixed(2);
+  if (f < 100) return f.toFixed(1);
+  return Math.round(f).toString();
+}
+
+// ============================================================
+//  Timbre definitions — which use oscillators vs impulse buffers
+// ============================================================
+const OSC_TIMBRES = ['sine', 'square', 'triangle', 'sawtooth'];
+const IMPULSE_TIMBRES = ['click', 'kick', 'snare', 'hihat', 'bell'];
+const ALL_TIMBRES = [...OSC_TIMBRES, ...IMPULSE_TIMBRES];
+
+// Generate an impulse buffer for a given timbre at a given sample rate
+function generateImpulseBuffer(timbre, sampleRate) {
+  let len, data;
+  switch (timbre) {
+    case 'click': {
+      len = Math.ceil(sampleRate * 0.004);
+      data = new Float32Array(len);
+      for (let i = 0; i < len; i++) data[i] = Math.exp(-i / (sampleRate * 0.001));
+      return data;
+    }
+    case 'kick': {
+      // Short punchy kick — 25ms so overlapping buffers don't cancel at high freqs
+      len = Math.ceil(sampleRate * 0.025);
+      data = new Float32Array(len);
+      for (let i = 0; i < len; i++) {
+        const t = i / sampleRate;
+        const amp = Math.exp(-t * 120);
+        // Fast sine sweep from ~180Hz down to ~60Hz
+        const phase = 2 * Math.PI * (60 * t + (180 / 80) * (1 - Math.exp(-t * 80)));
+        data[i] = Math.sin(phase) * amp;
+      }
+      return data;
+    }
+    case 'snare': {
+      // Mix of pitched body (~200Hz decaying) + noise burst
+      len = Math.ceil(sampleRate * 0.08);
+      data = new Float32Array(len);
+      for (let i = 0; i < len; i++) {
+        const t = i / sampleRate;
+        const body = Math.sin(2 * Math.PI * 200 * t) * Math.exp(-t * 40) * 0.5;
+        const noise = (Math.random() * 2 - 1) * Math.exp(-t * 30) * 0.7;
+        data[i] = body + noise;
+      }
+      return data;
+    }
+    case 'hihat': {
+      // Very short high-frequency noise burst, ~20ms
+      len = Math.ceil(sampleRate * 0.025);
+      data = new Float32Array(len);
+      for (let i = 0; i < len; i++) {
+        const t = i / sampleRate;
+        // Bandpassed noise approximation — mix of high-freq components
+        const n1 = Math.sin(2 * Math.PI * 6000 * t + Math.random() * 0.5);
+        const n2 = Math.sin(2 * Math.PI * 8500 * t + Math.random() * 0.5);
+        const n3 = Math.sin(2 * Math.PI * 12000 * t + Math.random() * 0.3);
+        const amp = Math.exp(-t * 120);
+        data[i] = (n1 + n2 + n3) / 3 * amp;
+      }
+      return data;
+    }
+    case 'bell': {
+      // Inharmonic partials: 1, 2.4, 3.0, 4.5, 6.2 — metallic bell character
+      len = Math.ceil(sampleRate * 0.4);
+      data = new Float32Array(len);
+      const partials = [1, 2.4, 3.0, 4.5, 6.2];
+      const decays   = [8, 10, 14, 18, 22];
+      const baseF = 800;
+      for (let i = 0; i < len; i++) {
+        const t = i / sampleRate;
+        let sum = 0;
+        for (let p = 0; p < partials.length; p++) {
+          sum += Math.sin(2 * Math.PI * baseF * partials[p] * t) *
+                 Math.exp(-t * decays[p]) / partials.length;
+        }
+        data[i] = sum;
+      }
+      return data;
+    }
+  }
+}
+
+// ============================================================
+//  Audio Engine
+// ============================================================
+function createAudioEngine() {
+  let ctx = null;
+  let masterGain = null;
+  let limiter = null;
+  let voices = [];
+  let currentRatio = [3, 2];
+  let currentTimbre = 'sine';
+  let currentBaseFreq = 31.62;
+  let running = false;
+  // Cache impulse buffers per timbre
+  const impulseCache = {};
+
+  function ensureContext() {
+    if (!ctx) {
+      ctx = new (window.AudioContext || window.webkitAudioContext)();
+      limiter = ctx.createDynamicsCompressor();
+      limiter.threshold.value = -3;
+      limiter.knee.value = 6;
+      limiter.ratio.value = 12;
+      limiter.attack.value = 0.002;
+      limiter.release.value = 0.05;
+      limiter.connect(ctx.destination);
+      masterGain = ctx.createGain();
+      masterGain.gain.value = 0;
+      masterGain.connect(limiter);
+    }
+    if (ctx.state === 'suspended') ctx.resume();
+  }
+
+  function destroyVoices() {
+    for (const v of voices) {
+      try {
+        if (v.osc) { v.osc.stop(); v.osc.disconnect(); }
+        if (v.clickInterval != null) clearInterval(v.clickInterval);
+        if (v.gain) v.gain.disconnect();
+      } catch (_) {}
+    }
+    voices = [];
+  }
+
+  // Get or create an AudioBuffer for a given impulse timbre
+  function getImpulseBuffer(timbre) {
+    if (!impulseCache[timbre]) {
+      const samples = generateImpulseBuffer(timbre, ctx.sampleRate);
+      const buf = ctx.createBuffer(1, samples.length, ctx.sampleRate);
+      buf.getChannelData(0).set(samples);
+      impulseCache[timbre] = buf;
+    }
+    return impulseCache[timbre];
+  }
+
+  function scheduleImpulse(buffer, gainNode, time) {
+    const src = ctx.createBufferSource();
+    src.buffer = buffer;
+    src.connect(gainNode);
+    src.start(time);
+  }
+
+  function createImpulseVoice(timbre, freq, voiceGain) {
+    const gain = ctx.createGain();
+    gain.gain.value = voiceGain;
+    gain.connect(masterGain);
+    const buf = getImpulseBuffer(timbre);
+
+    let lastTrigger = ctx.currentTime;
+    scheduleImpulse(buf, gain, lastTrigger);
+
+    const interval = setInterval(() => {
+      if (!running) return;
+      const now = ctx.currentTime;
+      const period = 1 / freq;
+      while (lastTrigger + period <= now + 0.1) {
+        lastTrigger += period;
+        if (lastTrigger > now - 0.01) {
+          scheduleImpulse(buf, gain, Math.max(lastTrigger, now));
+        }
+      }
+    }, 50);
+
+    return { clickInterval: interval, gain, _freq: freq };
+  }
+
+  function rebuildOscillators() {
+    destroyVoices();
+    if (!running) return;
+    const n = currentRatio.length;
+    const rMin = Math.min(...currentRatio);
+    const voiceGain = 1 / n;
+    const startTime = ctx.currentTime + 0.005;
+    const isImpulse = IMPULSE_TIMBRES.includes(currentTimbre);
+
+    for (let i = 0; i < n; i++) {
+      const freq = currentBaseFreq * (currentRatio[i] / rMin);
+      if (isImpulse) {
+        voices.push(createImpulseVoice(currentTimbre, freq, voiceGain));
+      } else {
+        const osc = ctx.createOscillator();
+        osc.type = currentTimbre;
+        osc.frequency.value = freq;
+        const gain = ctx.createGain();
+        gain.gain.value = voiceGain;
+        osc.connect(gain);
+        gain.connect(masterGain);
+        osc.start(startTime);
+        voices.push({ osc, gain });
+      }
+    }
+  }
+
+  function updateFrequencies(baseFreq) {
+    currentBaseFreq = baseFreq;
+    if (!running || voices.length === 0) return;
+    const rMin = Math.min(...currentRatio);
+    const now = ctx.currentTime;
+    const isImpulse = IMPULSE_TIMBRES.includes(currentTimbre);
+
+    if (isImpulse) {
+      rebuildOscillators();
+    } else {
+      for (let i = 0; i < voices.length; i++) {
+        const freq = baseFreq * (currentRatio[i] / rMin);
+        if (voices[i].osc) {
+          voices[i].osc.frequency.setTargetAtTime(freq, now, 0.02);
+        }
+      }
+    }
+  }
+
+  function setRatio(ratio) { currentRatio = ratio; if (running) rebuildOscillators(); }
+  function setTimbre(timbre) {
+    currentTimbre = timbre;
+    if (running) rebuildOscillators();
+  }
+  function start() {
+    ensureContext();
+    running = true;
+    masterGain.gain.setTargetAtTime(1, ctx.currentTime, 0.02);
+    rebuildOscillators();
+  }
+  function stop() {
+    running = false;
+    if (masterGain) masterGain.gain.setTargetAtTime(0, ctx.currentTime, 0.02);
+    setTimeout(destroyVoices, 80);
+  }
+  function getState() {
+    return { ratio: currentRatio.slice(), timbre: currentTimbre, baseFreq: currentBaseFreq };
+  }
+
+  return { start, stop, setRatio, setTimbre, updateFrequencies, isRunning: () => running, getState };
+}
+
+// ============================================================
+//  Visualization modes list
+// ============================================================
+const VIZ_MODES = [
+  'waves', 'lissajous', 'geometry',
+  'spirograph', 'harmonograph', 'cymatic', 'ring',
+  'pendulum', 'fractal', 'tensor'
+];
+
+// ============================================================
+//  Visualization Engine
+// ============================================================
+function visualizationEngine(canvas) {
+  const c = canvas.getContext('2d');
+  let mode = 'waves';
+  let animId = null;
+  let startTime = performance.now();
+
+  const COLORS = [
+    '#5a8aff', '#ff5a8a', '#5aff8a', '#ffd55a',
+    '#d55aff', '#5affd5', '#ff8a5a', '#8a5aff'
+  ];
+
+  let ratio = [3, 2];
+  let baseFreq = 31.62;
+
+  function setMode(m) { mode = m; }
+  function setState(r, f) { ratio = r; baseFreq = f; }
+
+  function resize() {
+    const dpr = window.devicePixelRatio || 1;
+    const rect = canvas.getBoundingClientRect();
+    canvas.width = rect.width * dpr;
+    canvas.height = rect.height * dpr;
+    c.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+
+  function voiceFreq(i) {
+    const rMin = Math.min(...ratio);
+    return baseFreq * (ratio[i] / rMin);
+  }
+
+  // Geometry viz time: sqrt-compressed so speed increases with freq but stays readable
+  // Effective angular velocity ∝ sqrt(baseFreq) instead of baseFreq
+  function vizTime(t) {
+    return t * 0.15 / Math.sqrt(Math.max(baseFreq, 0.25));
+  }
+
+  // Forward viz time: speed increases with frequency (for spirograph/harmonograph/pendulum)
+  function vizTimeForward(t) {
+    return t * Math.pow(Math.max(baseFreq, 0.25), 0.35) * 0.25;
+  }
+
+  // ---- Waves ----
+  function drawWaves(t) {
+    const w = canvas.clientWidth;
+    const h = canvas.clientHeight;
+    const n = ratio.length;
+    const period = 1 / baseFreq;
+    const totalTime = 2 * period;
+    const waveH = h * 0.55;
+    const waveCy = waveH / 2 + 4;
+    const amp = waveH * 0.38;
+
+    for (let vi = 0; vi < n; vi++) {
+      const freq = voiceFreq(vi);
+      c.beginPath();
+      c.strokeStyle = COLORS[vi % COLORS.length];
+      c.lineWidth = 1.6;
+      c.globalAlpha = 0.8;
+      for (let px = 0; px < w; px++) {
+        const st = t + (px / w) * totalTime;
+        const y = waveCy - Math.sin(2 * Math.PI * freq * st) * amp;
+        if (px === 0) c.moveTo(px, y); else c.lineTo(px, y);
+      }
+      c.stroke();
+    }
+    c.globalAlpha = 1;
+
+    c.beginPath();
+    c.strokeStyle = '#1a1a2a';
+    c.lineWidth = 1;
+    c.moveTo(0, h * 0.6);
+    c.lineTo(w, h * 0.6);
+    c.stroke();
+
+    const compCy = h * 0.6 + (h * 0.38) / 2;
+    const compAmp = h * 0.38 * 0.42;
+    c.beginPath();
+    c.strokeStyle = '#e0e0e8';
+    c.lineWidth = 2;
+    for (let px = 0; px < w; px++) {
+      const st = t + (px / w) * totalTime;
+      let sum = 0;
+      for (let vi = 0; vi < n; vi++) sum += Math.sin(2 * Math.PI * voiceFreq(vi) * st);
+      sum /= n;
+      const y = compCy - sum * compAmp;
+      if (px === 0) c.moveTo(px, y); else c.lineTo(px, y);
+    }
+    c.stroke();
+  }
+
+  // ---- Lissajous ----
+  function drawLissajous(t) {
+    const w = canvas.clientWidth;
+    const h = canvas.clientHeight;
+    const cx = w / 2, cy = h / 2;
+    const R = Math.min(w, h) * 0.44;
+    const n = ratio.length;
+    const rMin = Math.min(...ratio);
+
+    function lissX(st) {
+      let sum = 0, norm = 0;
+      for (let i = 0; i < n; i++) {
+        const freq = baseFreq * (ratio[i] / rMin);
+        const phase = (i * Math.PI) / n;
+        const weight = 1 / (1 + Math.floor(i / 2));
+        sum += Math.sin(2 * Math.PI * freq * st + phase) * weight;
+        norm += weight;
+      }
+      return sum / norm;
+    }
+    function lissY(st) {
+      let sum = 0, norm = 0;
+      for (let i = 0; i < n; i++) {
+        const freq = baseFreq * (ratio[i] / rMin);
+        const phase = ((i + 1) * Math.PI * 0.5) / n;
+        const weight = 1 / (1 + Math.floor((i + 1) / 2));
+        sum += Math.cos(2 * Math.PI * freq * st + phase) * weight;
+        norm += weight;
+      }
+      return sum / norm;
+    }
+
+    const trailTime = 4 / baseFreq;
+    const steps = 3000;
+    for (let seg = 0; seg < steps; seg++) {
+      const f0 = seg / steps, f1 = (seg + 1) / steps;
+      const s0 = t - trailTime + f0 * trailTime;
+      const s1 = t - trailTime + f1 * trailTime;
+      const alpha = f0 * f0;
+      c.beginPath();
+      c.strokeStyle = `rgba(90, 138, 255, ${alpha * 0.9})`;
+      c.lineWidth = 1 + alpha * 1.5;
+      c.moveTo(cx + lissX(s0) * R, cy + lissY(s0) * R);
+      c.lineTo(cx + lissX(s1) * R, cy + lissY(s1) * R);
+      c.stroke();
+    }
+    c.beginPath();
+    c.fillStyle = '#e0e0e8';
+    c.shadowColor = '#5a8aff';
+    c.shadowBlur = 12;
+    c.arc(cx + lissX(t) * R, cy + lissY(t) * R, 4, 0, Math.PI * 2);
+    c.fill();
+    c.shadowBlur = 0;
+  }
+
+  // ---- Geometry (epicyclic) — 10x slower ----
+  function drawGeometry(t) {
+    const vt = vizTime(t);
+    const w = canvas.clientWidth, h = canvas.clientHeight;
+    const cx = w / 2, cy = h / 2;
+    const n = ratio.length;
+    const rMin = Math.min(...ratio);
+    const maxR = Math.min(w, h) * 0.47;
+    const armLen = maxR / (n + 0.3);
+
+    let x = cx, y = cy;
+    const tips = [];
+
+    for (let i = 0; i < n; i++) {
+      const freq = baseFreq * (ratio[i] / rMin);
+      const angle = 2 * Math.PI * freq * vt;
+      const len = armLen * (1 - i * 0.05);
+
+      c.beginPath();
+      c.strokeStyle = 'rgba(90, 90, 255, 0.1)';
+      c.lineWidth = 1;
+      c.arc(x, y, len, 0, Math.PI * 2);
+      c.stroke();
+
+      const nx = x + Math.cos(angle) * len;
+      const ny = y + Math.sin(angle) * len;
+      c.beginPath();
+      c.strokeStyle = COLORS[i % COLORS.length];
+      c.lineWidth = 2;
+      c.moveTo(x, y); c.lineTo(nx, ny);
+      c.stroke();
+      c.beginPath();
+      c.fillStyle = COLORS[i % COLORS.length];
+      c.arc(nx, ny, 3, 0, Math.PI * 2);
+      c.fill();
+
+      tips.push({ x: nx, y: ny });
+      x = nx; y = ny;
+    }
+
+    if (tips.length >= 2) {
+      c.beginPath();
+      c.strokeStyle = 'rgba(224, 224, 232, 0.35)';
+      c.lineWidth = 1;
+      c.moveTo(tips[0].x, tips[0].y);
+      for (let i = 1; i < tips.length; i++) c.lineTo(tips[i].x, tips[i].y);
+      c.closePath();
+      c.stroke();
+      c.fillStyle = 'rgba(90, 90, 255, 0.06)';
+      c.fill();
+    }
+
+    // Trail
+    const trailLen = (1 / baseFreq) * 6;
+    const trailSteps = 1500;
+    c.beginPath();
+    for (let s = 0; s <= trailSteps; s++) {
+      const st = vizTime(t - trailLen + (s / trailSteps) * trailLen);
+      let tx = cx, ty = cy;
+      for (let i = 0; i < n; i++) {
+        const freq = baseFreq * (ratio[i] / rMin);
+        const angle = 2 * Math.PI * freq * st;
+        tx += Math.cos(angle) * armLen * (1 - i * 0.05);
+        ty += Math.sin(angle) * armLen * (1 - i * 0.05);
+      }
+      if (s === 0) c.moveTo(tx, ty); else c.lineTo(tx, ty);
+    }
+    c.strokeStyle = 'rgba(224, 224, 232, 0.22)';
+    c.lineWidth = 1;
+    c.stroke();
+  }
+
+  // ---- Spirograph ----
+  function drawSpirograph(t) {
+    const vt = vizTimeForward(t);
+    const w = canvas.clientWidth, h = canvas.clientHeight;
+    const cx = w / 2, cy = h / 2;
+    const scale = Math.min(w, h) * 0.44;
+    const n = ratio.length;
+    const R = ratio.reduce((a, b) => a + b, 0);
+    const d = R * 0.6;
+    const steps = 4000;
+    const lcmPeriod = R / Math.min(...ratio);
+    const totalAngle = lcmPeriod * 2 * Math.PI;
+    const phaseOffset = vt * 2 * Math.PI * 0.3;
+
+    for (let vi = 0; vi < Math.min(n, 4); vi++) {
+      const r = ratio[vi];
+      c.beginPath();
+      c.strokeStyle = COLORS[vi % COLORS.length];
+      c.lineWidth = 1.2;
+      c.globalAlpha = 0.7;
+      for (let s = 0; s <= steps; s++) {
+        const theta = (s / steps) * totalAngle + phaseOffset;
+        const x = cx + ((R - r) * Math.cos(theta) + d * Math.cos(((R - r) / r) * theta)) * scale / (R + d);
+        const y = cy + ((R - r) * Math.sin(theta) - d * Math.sin(((R - r) / r) * theta)) * scale / (R + d);
+        if (s === 0) c.moveTo(x, y); else c.lineTo(x, y);
+      }
+      c.stroke();
+    }
+    c.globalAlpha = 1;
+  }
+
+  // ---- Harmonograph ----
+  function drawHarmonograph(t) {
+    const vt = vizTimeForward(t);
+    const w = canvas.clientWidth, h = canvas.clientHeight;
+    const cx = w / 2, cy = h / 2;
+    const scale = Math.min(w, h) * 0.44;
+    const n = ratio.length;
+    const rMin = Math.min(...ratio);
+    const totalTime = 30, steps = 5000, dampBase = 0.03;
+
+    function compute(st) {
+      const damp = Math.exp(-dampBase * st);
+      let xSum = 0, ySum = 0;
+      for (let i = 0; i < n; i++) {
+        const freq = ratio[i] / rMin;
+        const phase = i * Math.PI * 0.7;
+        const a = damp / Math.sqrt(n);
+        if (i % 2 === 0) xSum += a * Math.sin(freq * st * 2 * Math.PI / totalTime * 8 + phase + vt * 0.5);
+        else ySum += a * Math.sin(freq * st * 2 * Math.PI / totalTime * 8 + phase + vt * 0.5);
+      }
+      if (n === 1) {
+        xSum = damp * Math.sin(st * 2 * Math.PI / totalTime * 8 + vt * 0.5);
+        ySum = damp * Math.sin(st * 2 * Math.PI / totalTime * 8 + Math.PI * 0.5 + vt * 0.5);
+      }
+      if (n > 1 && n % 2 === 1) {
+        const freq = ratio[n - 1] / rMin;
+        ySum += (Math.exp(-dampBase * st) / Math.sqrt(n)) * Math.sin(freq * st * 2 * Math.PI / totalTime * 8 + vt * 0.5);
+      }
+      return [cx + xSum * scale, cy + ySum * scale];
+    }
+
+    c.beginPath();
+    for (let s = 0; s <= steps; s++) {
+      const [x, y] = compute((s / steps) * totalTime);
+      if (s === 0) c.moveTo(x, y); else c.lineTo(x, y);
+    }
+    c.strokeStyle = 'rgba(90, 138, 255, 0.5)';
+    c.lineWidth = 1;
+    c.stroke();
+
+    c.beginPath();
+    for (let s = 0; s <= 600; s++) {
+      const [x, y] = compute((s / 600) * totalTime * 0.1);
+      if (s === 0) c.moveTo(x, y); else c.lineTo(x, y);
+    }
+    c.strokeStyle = '#c0c0ff';
+    c.lineWidth = 1.5;
+    c.stroke();
+  }
+
+  // ---- Cymatic (enhanced for low ratios with harmonics + fluid distortion) ----
+  function drawCymatic(t) {
+    const vt = vizTime(t);
+    const w = canvas.clientWidth, h = canvas.clientHeight;
+    const cx = w / 2, cy = h / 2;
+    const maxR = Math.min(w, h) * 0.46;
+    const n = ratio.length;
+    const rMin = Math.min(...ratio);
+
+    // Build effective mode list: each ratio component + its first 3 harmonics
+    // This makes simple ratios like 3:2 produce rich patterns
+    const modes = [];
+    for (let vi = 0; vi < n; vi++) {
+      const k = ratio[vi] / rMin;
+      for (let h = 1; h <= 4; h++) {
+        modes.push({ k: k * h, vi: vi, harmonic: h });
+      }
+    }
+
+    for (let ri = 1; ri <= 45; ri++) {
+      const rFrac = ri / 45;
+      const ringR = rFrac * maxR;
+      c.beginPath();
+      for (let s = 0; s <= 360; s++) {
+        const angle = (s / 360) * Math.PI * 2;
+        let mod = 0;
+        for (let mi = 0; mi < modes.length; mi++) {
+          const m = modes[mi];
+          const weight = 1 / (m.harmonic * m.harmonic); // harmonics decay as 1/h²
+          // Radial standing wave
+          const radial = Math.cos(m.k * Math.PI * rFrac * 1.5 + vt * m.k * 0.6);
+          // Angular mode with fluid-like phase offset per ring
+          const fluidPhase = rFrac * m.k * 0.8 + vt * 0.15 * m.vi;
+          const angular = Math.sin(m.k * angle + fluidPhase);
+          mod += radial * angular * weight;
+        }
+        // Normalize by total weight
+        let totalWeight = 0;
+        for (let mi = 0; mi < modes.length; mi++) {
+          const h = modes[mi].harmonic;
+          totalWeight += 1 / (h * h);
+        }
+        mod /= totalWeight;
+
+        // Stronger displacement for visual impact
+        const displacement = mod * maxR * 0.1;
+        const r = ringR + displacement;
+        const x = cx + Math.cos(angle) * r, y = cy + Math.sin(angle) * r;
+        if (s === 0) c.moveTo(x, y); else c.lineTo(x, y);
+      }
+      c.closePath();
+
+      // Brighter rings where standing waves have antinodes
+      const brightness = 0.12 + Math.abs(Math.sin(rFrac * Math.PI * 3)) * 0.25;
+      c.strokeStyle = `rgba(90, 138, 255, ${brightness})`;
+      c.lineWidth = 1;
+      c.stroke();
+    }
+
+    // Nodal lines — more lines for richer look even with simple ratios
+    for (let vi = 0; vi < n; vi++) {
+      const k = ratio[vi] / rMin;
+      const lineCount = Math.max(Math.round(k * 3), 4);
+      c.globalAlpha = 0.1;
+      for (let li = 0; li < lineCount; li++) {
+        const angle = (li / lineCount) * Math.PI * 2 + vt * 0.2 * (vi + 1);
+        c.beginPath();
+        c.strokeStyle = COLORS[vi % COLORS.length];
+        c.moveTo(cx, cy);
+        c.lineTo(cx + Math.cos(angle) * maxR, cy + Math.sin(angle) * maxR);
+        c.stroke();
+      }
+    }
+    c.globalAlpha = 1;
+  }
+
+  // ---- Ring ----
+  function drawRing(t) {
+    const w = canvas.clientWidth, h = canvas.clientHeight;
+    const cx = w / 2, cy = h / 2;
+    const n = ratio.length;
+    const rMin = Math.min(...ratio);
+    const baseR = Math.min(w, h) * 0.28;
+    const ampR = Math.min(w, h) * 0.12;
+
+    for (let vi = 0; vi < n; vi++) {
+      const freq = voiceFreq(vi);
+      const ringOffset = baseR + (vi - (n - 1) / 2) * (ampR * 0.5 / Math.max(n - 1, 1));
+      c.beginPath();
+      c.strokeStyle = COLORS[vi % COLORS.length];
+      c.lineWidth = 1.8;
+      c.globalAlpha = 0.75;
+      for (let s = 0; s <= 500; s++) {
+        const angle = (s / 500) * Math.PI * 2;
+        const wave = Math.sin(2 * Math.PI * freq * t + angle * (ratio[vi] / rMin) * 4);
+        const r = ringOffset + wave * ampR * 0.3;
+        const x = cx + Math.cos(angle) * r, y = cy + Math.sin(angle) * r;
+        if (s === 0) c.moveTo(x, y); else c.lineTo(x, y);
+      }
+      c.closePath();
+      c.stroke();
+    }
+
+    c.beginPath();
+    c.strokeStyle = '#e0e0e8';
+    c.lineWidth = 2;
+    c.globalAlpha = 0.9;
+    for (let s = 0; s <= 500; s++) {
+      const angle = (s / 500) * Math.PI * 2;
+      let sum = 0;
+      for (let vi = 0; vi < n; vi++)
+        sum += Math.sin(2 * Math.PI * voiceFreq(vi) * t + angle * (ratio[vi] / Math.min(...ratio)) * 4);
+      sum /= n;
+      const r = baseR + sum * ampR * 0.4;
+      const x = cx + Math.cos(angle) * r, y = cy + Math.sin(angle) * r;
+      if (s === 0) c.moveTo(x, y); else c.lineTo(x, y);
+    }
+    c.closePath();
+    c.stroke();
+    c.globalAlpha = 1;
+  }
+
+  // ---- Pendulum (synced to actual audio frequencies) ----
+  function drawPendulum(t) {
+    const w = canvas.clientWidth, h = canvas.clientHeight;
+    const n = ratio.length;
+    const rMin = Math.min(...ratio);
+
+    const pivotY = h * 0.08;
+    const maxLen = h * 0.55;
+    const spacing = w / (n + 1);
+
+    const bobs = [];
+
+    for (let i = 0; i < n; i++) {
+      const freq = voiceFreq(i); // actual audio frequency in Hz
+      const pivotX = spacing * (i + 1);
+      // Swing angle driven by the real audio frequency
+      const angle = Math.sin(2 * Math.PI * freq * t) * 0.8;
+      const pendLen = maxLen * (0.6 + 0.4 * (1 - i / Math.max(n - 1, 1)));
+      const bobX = pivotX + Math.sin(angle) * pendLen;
+      const bobY = pivotY + Math.cos(angle) * pendLen;
+      bobs.push({ x: bobX, y: bobY, px: pivotX });
+
+      // Pivot point
+      c.beginPath();
+      c.fillStyle = '#444';
+      c.arc(pivotX, pivotY, 3, 0, Math.PI * 2);
+      c.fill();
+
+      // Rod
+      c.beginPath();
+      c.strokeStyle = 'rgba(224, 224, 232, 0.4)';
+      c.lineWidth = 1.5;
+      c.moveTo(pivotX, pivotY);
+      c.lineTo(bobX, bobY);
+      c.stroke();
+
+      // Bob — size inversely proportional to ratio component
+      const bobR = 8 + 4 * (rMin / ratio[i]);
+      c.beginPath();
+      c.fillStyle = COLORS[i % COLORS.length];
+      c.arc(bobX, bobY, bobR, 0, Math.PI * 2);
+      c.fill();
+
+      // Trail arc — use actual frequency, show recent 2 periods of lowest voice
+      const trailDur = Math.min(2 / baseFreq, 2); // cap at 2 seconds
+      c.beginPath();
+      c.strokeStyle = COLORS[i % COLORS.length];
+      c.globalAlpha = 0.15;
+      c.lineWidth = 1;
+      for (let s = 0; s <= 100; s++) {
+        const st = t - trailDur + (s / 100) * trailDur;
+        const a = Math.sin(2 * Math.PI * freq * st) * 0.8;
+        const tx = pivotX + Math.sin(a) * pendLen;
+        const ty = pivotY + Math.cos(a) * pendLen;
+        if (s === 0) c.moveTo(tx, ty); else c.lineTo(tx, ty);
+      }
+      c.stroke();
+      c.globalAlpha = 1;
+    }
+
+    // Coupling springs between adjacent bobs
+    for (let i = 0; i < bobs.length - 1; i++) {
+      const a = bobs[i], b = bobs[i + 1];
+      c.beginPath();
+      c.strokeStyle = 'rgba(255, 200, 100, 0.25)';
+      c.lineWidth = 1;
+      const segs = 12;
+      for (let s = 0; s <= segs; s++) {
+        const frac = s / segs;
+        const mx = a.x + (b.x - a.x) * frac;
+        const my = a.y + (b.y - a.y) * frac;
+        const offset = Math.sin(frac * Math.PI * 4) * 6;
+        const dx = b.y - a.y, dy = -(b.x - a.x);
+        const len = Math.sqrt(dx * dx + dy * dy) || 1;
+        const nx = dx / len * offset, ny = dy / len * offset;
+        if (s === 0) c.moveTo(mx + nx, my + ny);
+        else c.lineTo(mx + nx, my + ny);
+      }
+      c.stroke();
+    }
+
+    // Horizontal reference line
+    c.beginPath();
+    c.strokeStyle = 'rgba(90, 90, 255, 0.08)';
+    c.lineWidth = 1;
+    c.setLineDash([4, 4]);
+    c.moveTo(0, pivotY);
+    c.lineTo(w, pivotY);
+    c.stroke();
+    c.setLineDash([]);
+  }
+
+  // ---- Fractal (ratio-driven branching tree) ----
+  function drawFractal(t) {
+    const vt = vizTimeForward(t);
+    const w = canvas.clientWidth, h = canvas.clientHeight;
+    const n = ratio.length;
+    const rMin = Math.min(...ratio);
+
+    const startX = w / 2;
+    const startY = h * 0.97;
+    const trunkLen = h * 0.32;
+    const maxDepth = Math.min(n + 3, 8);
+    const margin = 10;
+
+    function drawBranch(x, y, angle, length, depth, voiceIdx) {
+      if (depth > maxDepth || length < 2) return;
+
+      let endX = x + Math.cos(angle) * length;
+      let endY = y + Math.sin(angle) * length;
+
+      // Clamp endpoints to stay within canvas with margin
+      endX = Math.max(margin, Math.min(w - margin, endX));
+      endY = Math.max(margin, Math.min(h - margin, endY));
+
+      const alpha = 0.2 + (1 - depth / maxDepth) * 0.6;
+      c.beginPath();
+      c.strokeStyle = COLORS[voiceIdx % COLORS.length];
+      c.globalAlpha = alpha;
+      c.lineWidth = Math.max(1, (maxDepth - depth) * 1.0);
+      c.moveTo(x, y);
+      c.lineTo(endX, endY);
+      c.stroke();
+
+      const branchCount = Math.min(n, 3);
+      for (let i = 0; i < branchCount; i++) {
+        const freq = ratio[i] / rMin;
+        const spread = 0.35 + 0.25 * Math.sin(2 * Math.PI * freq * vt * 2 + depth);
+        const branchAngle = angle + spread * (i - (branchCount - 1) / 2) * 0.85;
+        const shrink = 0.52 + 0.13 * Math.sin(freq * vt * 3 + i);
+        drawBranch(endX, endY, branchAngle, length * shrink, depth + 1, i);
+      }
+    }
+
+    c.globalAlpha = 1;
+    drawBranch(startX, startY, -Math.PI / 2, trunkLen, 0, 0);
+    c.globalAlpha = 1;
+  }
+
+  // ---- Tensor (3D wireframe polyhedron, isometric projection) ----
+  function drawTensor(t) {
+    const vt = vizTime(t);
+    const w = canvas.clientWidth, h = canvas.clientHeight;
+    const cx = w / 2, cy = h / 2;
+    const n = ratio.length;
+    const rMin = Math.min(...ratio);
+    const scale = Math.min(w, h) * 0.35;
+
+    // Generate vertices: each ratio component creates a ring of vertices in 3D
+    // The number of vertices per ring = ratio value, at different heights
+    const vertices3D = [];
+    const edges = [];
+
+    for (let i = 0; i < n; i++) {
+      const k = ratio[i] / rMin;
+      const vertCount = Math.min(Math.max(Math.round(k * 2), 3), 12); // cap at 12
+      const yPos = (i / Math.max(n - 1, 1) - 0.5) * 2;
+      const ringR = 0.5 + Math.min(k, 10) * 0.15;
+      const ringStart = vertices3D.length;
+
+      for (let v = 0; v < vertCount; v++) {
+        const angle = (v / vertCount) * Math.PI * 2;
+        // Modulate radius by time
+        const rMod = ringR + 0.1 * Math.sin(k * vt * 2 + v);
+        vertices3D.push({
+          x: Math.cos(angle) * rMod,
+          y: yPos,
+          z: Math.sin(angle) * rMod,
+          color: COLORS[i % COLORS.length]
+        });
+        // Edge within ring
+        if (v > 0) edges.push([ringStart + v - 1, ringStart + v]);
+      }
+      edges.push([ringStart + vertCount - 1, ringStart]); // close ring
+
+      // Connect to previous ring's nearest vertex
+      if (i > 0) {
+        const prevK = ratio[i - 1] / rMin;
+        const prevCount = Math.min(Math.max(Math.round(prevK * 2), 3), 12);
+        let prevStart = 0;
+        for (let pi = 0; pi < i - 1; pi++)
+          prevStart += Math.min(Math.max(Math.round((ratio[pi] / rMin) * 2), 3), 12);
+        // Cross-connect some vertices
+        for (let v = 0; v < vertCount; v++) {
+          const target = prevStart + (v % prevCount);
+          edges.push([ringStart + v, target]);
+        }
+      }
+    }
+
+    // Rotate around Y and X axes
+    const rotY = vt * 0.7;
+    const rotX = vt * 0.4 + 0.3;
+
+    function project(v) {
+      // Rotate Y
+      let x = v.x * Math.cos(rotY) - v.z * Math.sin(rotY);
+      let z = v.x * Math.sin(rotY) + v.z * Math.cos(rotY);
+      let y = v.y;
+      // Rotate X
+      const y2 = y * Math.cos(rotX) - z * Math.sin(rotX);
+      const z2 = y * Math.sin(rotX) + z * Math.cos(rotX);
+      // Perspective
+      const perspective = 3 / (3 + z2);
+      return {
+        x: cx + x * perspective * scale,
+        y: cy + y2 * perspective * scale,
+        z: z2,
+        p: perspective
+      };
+    }
+
+    // Draw edges
+    const projected = vertices3D.map(v => ({ ...project(v), color: v.color }));
+
+    for (const [a, b] of edges) {
+      const pa = projected[a], pb = projected[b];
+      const avgZ = (pa.z + pb.z) / 2;
+      const alpha = 0.1 + (1 - (avgZ + 1) / 2) * 0.4;
+      c.beginPath();
+      c.strokeStyle = `rgba(90, 138, 255, ${alpha})`;
+      c.lineWidth = 1;
+      c.moveTo(pa.x, pa.y);
+      c.lineTo(pb.x, pb.y);
+      c.stroke();
+    }
+
+    // Draw vertices
+    // Sort by z for depth ordering
+    const sorted = projected.slice().sort((a, b) => a.z - b.z);
+    for (const v of sorted) {
+      const r = 2 + v.p * 2;
+      const alpha = 0.3 + (1 - (v.z + 1) / 2) * 0.7;
+      c.beginPath();
+      c.fillStyle = v.color;
+      c.globalAlpha = alpha;
+      c.arc(v.x, v.y, r, 0, Math.PI * 2);
+      c.fill();
+    }
+    c.globalAlpha = 1;
+  }
+
+  // ---- Main render loop ----
+  function render() {
+    const w = canvas.clientWidth, h = canvas.clientHeight;
+    c.clearRect(0, 0, w, h);
+    const t = (performance.now() - startTime) / 1000;
+
+    switch (mode) {
+      case 'waves':         drawWaves(t); break;
+      case 'lissajous':     drawLissajous(t); break;
+      case 'geometry':      drawGeometry(t); break;
+      case 'spirograph':    drawSpirograph(t); break;
+      case 'harmonograph':  drawHarmonograph(t); break;
+      case 'cymatic':       drawCymatic(t); break;
+      case 'ring':          drawRing(t); break;
+      case 'pendulum':      drawPendulum(t); break;
+      case 'fractal':       drawFractal(t); break;
+      case 'tensor':        drawTensor(t); break;
+    }
+
+    animId = requestAnimationFrame(render);
+  }
+
+  function start() { resize(); if (!animId) render(); }
+  function stop() { if (animId) { cancelAnimationFrame(animId); animId = null; } }
+  window.addEventListener('resize', resize);
+
+  return { setMode, setState, start, stop, getMode: () => mode };
+}
+
+// ============================================================
+//  URL State Manager
+// ============================================================
+function urlStateManager() {
+  function read() {
+    const params = new URLSearchParams(window.location.search);
+    const state = {};
+    if (params.has('ratio')) {
+      const parts = params.get('ratio').split('-');
+      const nums = parts.map(p => parseInt(p, 10)).filter(n => n > 0 && Number.isFinite(n));
+      if (nums.length >= 1 && nums.length <= 8) state.ratio = nums.join(':');
+    }
+    if (params.has('freq')) {
+      const f = parseFloat(params.get('freq'));
+      if (f >= FREQ_MIN && f <= FREQ_MAX) state.freq = f;
+    }
+    if (params.has('timbre')) {
+      const t = params.get('timbre');
+      if (ALL_TIMBRES.includes(t)) state.timbre = t;
+    }
+    if (params.has('viz')) {
+      const v = params.get('viz');
+      if (VIZ_MODES.includes(v)) state.viz = v;
+    }
+    return state;
+  }
+  function write(ratioStr, freq, timbre, vizMode) {
+    const params = new URLSearchParams();
+    params.set('ratio', ratioStr.replace(/:/g, '-'));
+    params.set('freq', formatFreq(freq));
+    params.set('timbre', timbre);
+    params.set('viz', vizMode);
+    window.history.replaceState(null, '', window.location.pathname + '?' + params.toString());
+  }
+  return { read, write };
+}
+
+// ============================================================
+//  Export Engine
+// ============================================================
+function exportEngine() {
+  function renderWAV(ratio, baseFreq, timbre, duration, callback) {
+    const sampleRate = 44100;
+    const length = sampleRate * duration;
+    const n = ratio.length;
+    const rMin = Math.min(...ratio);
+
+    if (IMPULSE_TIMBRES.includes(timbre)) {
+      const impulse = generateImpulseBuffer(timbre, sampleRate);
+      const buffer = new Float32Array(length);
+      for (let vi = 0; vi < n; vi++) {
+        const freq = baseFreq * (ratio[vi] / rMin);
+        const period = sampleRate / freq;
+        let nextTrigger = 0;
+        while (nextTrigger < length) {
+          const start = Math.floor(nextTrigger);
+          for (let j = 0; j < impulse.length && (start + j) < length; j++) {
+            buffer[start + j] += impulse[j] / n;
+          }
+          nextTrigger += period;
+        }
+      }
+      callback(buffer, sampleRate);
+      return;
+    }
+
+    const offline = new OfflineAudioContext(1, length, sampleRate);
+    const master = offline.createGain();
+    master.gain.value = 1;
+    master.connect(offline.destination);
+    for (let i = 0; i < n; i++) {
+      const freq = baseFreq * (ratio[i] / rMin);
+      const osc = offline.createOscillator();
+      osc.type = timbre;
+      osc.frequency.value = freq;
+      const gain = offline.createGain();
+      gain.gain.value = 1 / n;
+      osc.connect(gain);
+      gain.connect(master);
+      osc.start(0);
+      osc.stop(duration);
+    }
+    offline.startRendering().then(buf => callback(buf.getChannelData(0), sampleRate));
+  }
+
+  function encodeWAV(samples, sampleRate) {
+    const num = samples.length;
+    const buf = new ArrayBuffer(44 + num * 2);
+    const v = new DataView(buf);
+    const ws = (o, s) => { for (let i = 0; i < s.length; i++) v.setUint8(o + i, s.charCodeAt(i)); };
+    ws(0, 'RIFF'); v.setUint32(4, 36 + num * 2, true); ws(8, 'WAVE');
+    ws(12, 'fmt '); v.setUint32(16, 16, true); v.setUint16(20, 1, true);
+    v.setUint16(22, 1, true); v.setUint32(24, sampleRate, true);
+    v.setUint32(28, sampleRate * 2, true); v.setUint16(32, 2, true);
+    v.setUint16(34, 16, true); ws(36, 'data'); v.setUint32(40, num * 2, true);
+    for (let i = 0; i < num; i++) {
+      let s = Math.max(-1, Math.min(1, samples[i]));
+      v.setInt16(44 + i * 2, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
+    }
+    return new Blob([buf], { type: 'audio/wav' });
+  }
+
+  function download(ratio, baseFreq, timbre) {
+    const duration = 10;
+    const filename = `ratio_${ratio.join('-')}_freq_${formatFreq(baseFreq)}.wav`;
+    return new Promise(resolve => {
+      renderWAV(ratio, baseFreq, timbre, duration, (samples, sr) => {
+        const blob = encodeWAV(samples, sr);
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url; a.download = filename;
+        document.body.appendChild(a); a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        resolve();
+      });
+    });
+  }
+
+  return { download };
+}
+
+// ============================================================
+//  UI Controller
+// ============================================================
+function uiController() {
+  const ratioInput   = document.getElementById('ratioInput');
+  const ratioError   = document.getElementById('ratioError');
+  const timbreSelect = document.getElementById('timbreSelect');
+  const freqSlider   = document.getElementById('freqSlider');
+  const freqValue    = document.getElementById('freqValue');
+  const startBtn     = document.getElementById('startBtn');
+  const exportBtn    = document.getElementById('exportBtn');
+  const vizCanvas    = document.getElementById('vizCanvas');
+  const vizBtns      = document.querySelectorAll('.viz-btn');
+
+  const engine   = createAudioEngine();
+  const viz      = visualizationEngine(vizCanvas);
+  const urlMgr   = urlStateManager();
+  const exporter = exportEngine();
+
+  let currentRatio = [3, 2];
+  let currentBaseFreq = 31.62;
+
+  const urlState = urlMgr.read();
+  if (urlState.ratio) ratioInput.value = urlState.ratio;
+  if (urlState.timbre) timbreSelect.value = urlState.timbre;
+  if (urlState.viz) {
+    vizBtns.forEach(b => b.classList.toggle('active', b.dataset.mode === urlState.viz));
+    viz.setMode(urlState.viz);
+  }
+
+  const initResult = parseRatio(ratioInput.value);
+  if (!initResult.error) currentRatio = initResult.values;
+  engine.setRatio(currentRatio);
+  engine.setTimbre(timbreSelect.value);
+
+  if (urlState.freq) {
+    currentBaseFreq = urlState.freq;
+    freqSlider.value = freqToSlider(urlState.freq);
+  } else {
+    currentBaseFreq = sliderToFreq(parseFloat(freqSlider.value));
+  }
+  freqValue.textContent = formatFreq(currentBaseFreq);
+  engine.updateFrequencies(currentBaseFreq);
+  viz.setState(currentRatio, currentBaseFreq);
+  viz.start();
+
+  function syncURL() {
+    urlMgr.write(currentRatio.join(':'), currentBaseFreq, timbreSelect.value, viz.getMode());
+  }
+
+  ratioInput.addEventListener('input', () => {
+    const result = parseRatio(ratioInput.value);
+    if (result.error) {
+      ratioInput.classList.add('error');
+      ratioError.textContent = result.error;
+      return;
+    }
+    ratioInput.classList.remove('error');
+    ratioError.textContent = '';
+    currentRatio = result.values;
+    engine.setRatio(currentRatio);
+    viz.setState(currentRatio, currentBaseFreq);
+    syncURL();
+  });
+
+  timbreSelect.addEventListener('change', () => {
+    engine.setTimbre(timbreSelect.value);
+    syncURL();
+  });
+
+  freqSlider.addEventListener('input', () => {
+    currentBaseFreq = sliderToFreq(parseFloat(freqSlider.value));
+    freqValue.textContent = formatFreq(currentBaseFreq);
+    engine.updateFrequencies(currentBaseFreq);
+    viz.setState(currentRatio, currentBaseFreq);
+    syncURL();
+  });
+
+  startBtn.addEventListener('click', () => {
+    if (engine.isRunning()) {
+      engine.stop();
+      startBtn.textContent = 'Start';
+      startBtn.classList.remove('active');
+    } else {
+      engine.start();
+      startBtn.textContent = 'Stop';
+      startBtn.classList.add('active');
+    }
+  });
+
+  vizBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      vizBtns.forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      viz.setMode(btn.dataset.mode);
+      syncURL();
+    });
+  });
+
+  exportBtn.addEventListener('click', () => {
+    exportBtn.disabled = true;
+    exportBtn.textContent = 'Rendering…';
+    exporter.download(currentRatio, currentBaseFreq, timbreSelect.value).then(() => {
+      exportBtn.disabled = false;
+      exportBtn.textContent = 'Export WAV';
+    });
+  });
+}
+
+uiController();
+</script>
+
+</body>
+</html>
