@@ -330,7 +330,7 @@
 
   <div class="slider-section">
     <div class="slider-track">
-      <input type="range" id="freqSlider" min="0" max="1" step="0.001" value="0.5">
+      <input type="range" id="freqSlider" min="0" max="1" step="0.001" value="0.661">
     </div>
     <div class="slider-labels">
       <span>Pulse</span>
@@ -339,7 +339,7 @@
   </div>
 
   <div class="freq-display">
-    <span id="freqValue">31.62</span><span class="freq-unit">Hz</span>
+    <span id="freqValue">150</span><span class="freq-unit">Hz</span>
   </div>
 
   <div class="buttons-row">
@@ -471,7 +471,7 @@ function createAudioEngine() {
   let voices = [];
   let currentRatio = [3, 2];
   let currentTimbre = 'sine';
-  let currentBaseFreq = 31.62;
+  let currentBaseFreq = 150;
   let running = false;
   // Cache impulse buffers per timbre
   const impulseCache = {};
@@ -639,7 +639,7 @@ function visualizationEngine(canvas) {
   ];
 
   let ratio = [3, 2];
-  let baseFreq = 31.62;
+  let baseFreq = 150;
 
   function setMode(m) { mode = m; }
   function setState(r, f) { ratio = r; baseFreq = f; }
@@ -1460,7 +1460,7 @@ function uiController() {
   const exporter = exportEngine();
 
   let currentRatio = [3, 2];
-  let currentBaseFreq = 31.62;
+  let currentBaseFreq = 150;
 
   const urlState = urlMgr.read();
   if (urlState.ratio) ratioInput.value = urlState.ratio;
