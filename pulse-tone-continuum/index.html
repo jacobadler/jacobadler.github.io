@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Pulse–Tone Continuum</title>
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -120,12 +120,15 @@
   .viz-btn:hover { border-color: #5a5aff; color: #c0c0e0; }
   .viz-btn.active { background: #5a5aff; border-color: #5a5aff; color: #fff; }
 
+
   canvas {
     width: 100%;
     height: 320px;
     border-radius: 8px;
     background: #0e0e16;
     display: block;
+    touch-action: none;
+    cursor: grab;
   }
 
   .slider-section {
@@ -223,7 +226,14 @@
       gap: 10px;
       padding: 8px 10px;
       max-width: 100vw;
-      justify-content: center;
+      justify-content: flex-start;
+      height: 100%;
+      height: 100dvh;
+    }
+
+    .viz-section {
+      flex: 1 1 auto;
+      min-height: 0;
     }
 
     .controls-row {
@@ -249,7 +259,9 @@
     }
 
     canvas {
-      height: 200px;
+      height: 380px;
+      flex: 1 1 auto;
+      min-height: 200px;
     }
 
     .slider-track {
@@ -280,7 +292,7 @@
   /* Extra-short phones (e.g. iPhone SE, <700px tall) */
   @media (max-height: 700px) and (max-width: 600px) {
     .container { gap: 6px; padding: 4px 10px; }
-    canvas { height: 150px; }
+    canvas { height: 280px; min-height: 150px; }
     .freq-display { font-size: 20px; }
     .slider-track { height: 48px; }
     .start-btn, .export-btn { padding: 8px 16px; }
@@ -292,7 +304,7 @@
 <div class="container">
   <div class="controls-row">
     <div class="input-group" style="flex:2">
-      <label for="ratioInput">Enter Ratio (e.g., 3:2 or 7:5:4)</label>
+      <label for="ratioInput">Ratio</label>
       <input type="text" id="ratioInput" value="5:4:3" spellcheck="false" autocomplete="off">
       <div class="error-msg" id="ratioError"></div>
     </div>
@@ -312,7 +324,7 @@
     </div>
   </div>
 
-  <div class="viz-section">
+  <div class="viz-section" id="vizSection">
     <div class="viz-toggles">
       <button class="viz-btn active" data-mode="waves">Waves</button>
       <button class="viz-btn" data-mode="lissajous">Lissajous</button>
@@ -356,8 +368,8 @@ function parseRatio(str) {
   const trimmed = str.trim();
   if (!trimmed) return { error: 'Enter a ratio' };
   const parts = trimmed.split(':');
-  if (parts.length < 1 || parts.length > 8)
-    return { error: 'Use 1–8 colon-separated values' };
+  if (parts.length < 1 || parts.length > 32)
+    return { error: 'Use 1–32 colon-separated values' };
   const nums = [];
   for (const p of parts) {
     if (!/^\d+$/.test(p.trim())) return { error: 'Positive integers only' };
@@ -515,21 +527,22 @@ function createAudioEngine() {
     return impulseCache[timbre];
   }
 
-  function scheduleImpulse(buffer, gainNode, time) {
+  function scheduleImpulse(buffer, gainNode, time, playbackRate) {
     const src = ctx.createBufferSource();
     src.buffer = buffer;
+    if (playbackRate != null) src.playbackRate.value = playbackRate;
     src.connect(gainNode);
     src.start(time);
   }
 
-  function createImpulseVoice(timbre, freq, voiceGain) {
+  function createImpulseVoice(timbre, freq, voiceGain, pitchRatio) {
     const gain = ctx.createGain();
     gain.gain.value = voiceGain;
     gain.connect(masterGain);
     const buf = getImpulseBuffer(timbre);
 
     let lastTrigger = ctx.currentTime;
-    scheduleImpulse(buf, gain, lastTrigger);
+    scheduleImpulse(buf, gain, lastTrigger, pitchRatio);
 
     const interval = setInterval(() => {
       if (!running) return;
@@ -538,7 +551,7 @@ function createAudioEngine() {
       while (lastTrigger + period <= now + 0.1) {
         lastTrigger += period;
         if (lastTrigger > now - 0.01) {
-          scheduleImpulse(buf, gain, Math.max(lastTrigger, now));
+          scheduleImpulse(buf, gain, Math.max(lastTrigger, now), pitchRatio);
         }
       }
     }, 50);
@@ -558,7 +571,8 @@ function createAudioEngine() {
     for (let i = 0; i < n; i++) {
       const freq = currentBaseFreq * (currentRatio[i] / rMin);
       if (isImpulse) {
-        voices.push(createImpulseVoice(currentTimbre, freq, voiceGain));
+        const pitchRatio = currentRatio[i] / rMin;
+        voices.push(createImpulseVoice(currentTimbre, freq, voiceGain, pitchRatio));
       } else {
         const osc = ctx.createOscillator();
         osc.type = currentTimbre;
@@ -635,14 +649,25 @@ function visualizationEngine(canvas) {
 
   const COLORS = [
     '#5a8aff', '#ff5a8a', '#5aff8a', '#ffd55a',
-    '#d55aff', '#5affd5', '#ff8a5a', '#8a5aff'
+    '#d55aff', '#5affd5', '#ff8a5a', '#8a5aff',
+    '#ff5ad5', '#8aff5a', '#5ad5ff', '#ffa85a',
+    '#a85aff', '#5affa8', '#ff5a5a', '#5aff5a',
+    '#d5ff5a', '#5a5aff', '#ff8ad5', '#8ad5ff',
+    '#d5ff8a', '#ff5aa8', '#a8ff5a', '#5a8ad5',
+    '#ffcc5a', '#cc5aff', '#5affcc', '#ff5acc',
+    '#5accff', '#ccff5a', '#ff6a8a', '#6aff8a'
   ];
 
   let ratio = [3, 2];
   let baseFreq = 150;
+  let zoomLevel = 1;
+  let panX = 0, panY = 0;
+  let isPanning = false, panStartX = 0, panStartY = 0, panOriginX = 0, panOriginY = 0;
+  let lastPinchDist = 0;
 
   function setMode(m) { mode = m; }
   function setState(r, f) { ratio = r; baseFreq = f; }
+  function resetZoom() { zoomLevel = 1; panX = 0; panY = 0; }
 
   function resize() {
     const dpr = window.devicePixelRatio || 1;
@@ -651,6 +676,84 @@ function visualizationEngine(canvas) {
     canvas.height = rect.height * dpr;
     c.setTransform(dpr, 0, 0, dpr, 0, 0);
   }
+
+  // Mouse wheel zoom (always toward canvas center)
+  canvas.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    const delta = e.deltaY > 0 ? 0.9 : 1.1;
+    panX *= delta;
+    panY *= delta;
+    zoomLevel *= delta;
+    zoomLevel = Math.max(0.25, Math.min(zoomLevel, 20));
+  }, { passive: false });
+
+  // Mouse drag pan (middle-click or when zoomed)
+  canvas.addEventListener('mousedown', (e) => {
+    if (zoomLevel > 1 || e.button === 1) {
+      isPanning = true;
+      panStartX = e.clientX;
+      panStartY = e.clientY;
+      panOriginX = panX;
+      panOriginY = panY;
+      canvas.style.cursor = 'grabbing';
+      e.preventDefault();
+    }
+  });
+  window.addEventListener('mousemove', (e) => {
+    if (!isPanning) return;
+    panX = panOriginX + (e.clientX - panStartX);
+    panY = panOriginY + (e.clientY - panStartY);
+  });
+  window.addEventListener('mouseup', () => {
+    if (isPanning) { isPanning = false; canvas.style.cursor = ''; }
+  });
+
+  // Touch pinch-to-zoom and pan
+  canvas.addEventListener('touchstart', (e) => {
+    if (e.touches.length === 2) {
+      e.preventDefault();
+      const dx = e.touches[0].clientX - e.touches[1].clientX;
+      const dy = e.touches[0].clientY - e.touches[1].clientY;
+      lastPinchDist = Math.sqrt(dx * dx + dy * dy);
+    } else if (e.touches.length === 1 && zoomLevel > 1) {
+      isPanning = true;
+      panStartX = e.touches[0].clientX;
+      panStartY = e.touches[0].clientY;
+      panOriginX = panX;
+      panOriginY = panY;
+      e.preventDefault();
+    }
+  }, { passive: false });
+  canvas.addEventListener('touchmove', (e) => {
+    if (e.touches.length === 2) {
+      e.preventDefault();
+      const dx = e.touches[0].clientX - e.touches[1].clientX;
+      const dy = e.touches[0].clientY - e.touches[1].clientY;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      if (lastPinchDist > 0) {
+        const delta = dist / lastPinchDist;
+        panX *= delta;
+        panY *= delta;
+        zoomLevel *= delta;
+        zoomLevel = Math.max(0.25, Math.min(zoomLevel, 20));
+      }
+      lastPinchDist = dist;
+    } else if (e.touches.length === 1 && isPanning) {
+      e.preventDefault();
+      panX = panOriginX + (e.touches[0].clientX - panStartX);
+      panY = panOriginY + (e.touches[0].clientY - panStartY);
+    }
+  }, { passive: false });
+  canvas.addEventListener('touchend', (e) => {
+    if (e.touches.length < 2) lastPinchDist = 0;
+    if (e.touches.length === 0) isPanning = false;
+  });
+
+  // Double-click/tap to reset zoom
+  canvas.addEventListener('dblclick', (e) => {
+    e.preventDefault();
+    resetZoom();
+  });
 
   function voiceFreq(i) {
     const rMin = Math.min(...ratio);
@@ -1292,7 +1395,17 @@ function visualizationEngine(canvas) {
   // ---- Main render loop ----
   function render() {
     const w = canvas.clientWidth, h = canvas.clientHeight;
+    const dpr = window.devicePixelRatio || 1;
+    c.setTransform(dpr, 0, 0, dpr, 0, 0);
     c.clearRect(0, 0, w, h);
+
+    // Apply zoom (centered on canvas) and pan
+    c.save();
+    const cx = w / 2, cy = h / 2;
+    c.translate(cx + panX, cy + panY);
+    c.scale(zoomLevel, zoomLevel);
+    c.translate(-cx, -cy);
+
     const t = (performance.now() - startTime) / 1000;
 
     switch (mode) {
@@ -1308,6 +1421,16 @@ function visualizationEngine(canvas) {
       case 'tensor':        drawTensor(t); break;
     }
 
+    c.restore();
+
+    // Zoom indicator
+    if (Math.abs(zoomLevel - 1) > 0.01) {
+      c.setTransform(dpr, 0, 0, dpr, 0, 0);
+      c.fillStyle = 'rgba(224, 224, 232, 0.5)';
+      c.font = '11px system-ui, sans-serif';
+      c.fillText(zoomLevel.toFixed(1) + 'x', 8, h - 8);
+    }
+
     animId = requestAnimationFrame(render);
   }
 
@@ -1315,7 +1438,7 @@ function visualizationEngine(canvas) {
   function stop() { if (animId) { cancelAnimationFrame(animId); animId = null; } }
   window.addEventListener('resize', resize);
 
-  return { setMode, setState, start, stop, getMode: () => mode };
+  return { setMode, setState, start, stop, getMode: () => mode, resetZoom };
 }
 
 // ============================================================
@@ -1328,7 +1451,7 @@ function urlStateManager() {
     if (params.has('ratio')) {
       const parts = params.get('ratio').split('-');
       const nums = parts.map(p => parseInt(p, 10)).filter(n => n > 0 && Number.isFinite(n));
-      if (nums.length >= 1 && nums.length <= 8) state.ratio = nums.join(':');
+      if (nums.length >= 1 && nums.length <= 32) state.ratio = nums.join(':');
     }
     if (params.has('freq')) {
       const f = parseFloat(params.get('freq'));
@@ -1535,9 +1658,11 @@ function uiController() {
       vizBtns.forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
       viz.setMode(btn.dataset.mode);
+      viz.resetZoom();
       syncURL();
     });
   });
+
 
   exportBtn.addEventListener('click', () => {
     exportBtn.disabled = true;
@@ -1551,9 +1676,10 @@ function uiController() {
 
 uiController();
 
-// Prevent mobile bounce/scroll/zoom on the whole page
+// Prevent mobile bounce/scroll on the whole page (but allow canvas & slider touches)
 document.addEventListener('touchmove', function(e) {
-  if (e.target.type !== 'range') e.preventDefault();
+  if (e.target.type === 'range' || e.target.tagName === 'CANVAS') return;
+  e.preventDefault();
 }, { passive: false });
 </script>
 
