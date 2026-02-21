@@ -305,21 +305,22 @@
   <div class="controls-row">
     <div class="input-group" style="flex:2">
       <label for="ratioInput">Ratio</label>
-      <input type="text" id="ratioInput" value="5:4:3" spellcheck="false" autocomplete="off">
+      <input type="text" id="ratioInput" value="7:6:5:4" spellcheck="false" autocomplete="off">
       <div class="error-msg" id="ratioError"></div>
     </div>
     <div class="input-group" style="flex:1">
       <label for="timbreSelect">Timbre</label>
       <select id="timbreSelect">
+        <option value="drop" selected>drop</option>
         <option value="sine">sine</option>
         <option value="square">square</option>
         <option value="triangle">triangle</option>
-        <option value="sawtooth" selected>sawtooth</option>
-        <option value="click">click</option>
-        <option value="kick">kick</option>
+        <option value="sawtooth">sawtooth</option>
         <option value="snare">snare</option>
         <option value="hihat">hihat</option>
         <option value="bell">bell</option>
+        <option value="pop">pop</option>
+        <option value="marimba">marimba</option>
       </select>
     </div>
   </div>
@@ -399,32 +400,13 @@ function formatFreq(f) {
 //  Timbre definitions — which use oscillators vs impulse buffers
 // ============================================================
 const OSC_TIMBRES = ['sine', 'square', 'triangle', 'sawtooth'];
-const IMPULSE_TIMBRES = ['click', 'kick', 'snare', 'hihat', 'bell'];
+const IMPULSE_TIMBRES = ['snare', 'hihat', 'bell', 'pop', 'marimba', 'drop'];
 const ALL_TIMBRES = [...OSC_TIMBRES, ...IMPULSE_TIMBRES];
 
 // Generate an impulse buffer for a given timbre at a given sample rate
 function generateImpulseBuffer(timbre, sampleRate) {
   let len, data;
   switch (timbre) {
-    case 'click': {
-      len = Math.ceil(sampleRate * 0.004);
-      data = new Float32Array(len);
-      for (let i = 0; i < len; i++) data[i] = Math.exp(-i / (sampleRate * 0.001));
-      return data;
-    }
-    case 'kick': {
-      // Short punchy kick — 25ms so overlapping buffers don't cancel at high freqs
-      len = Math.ceil(sampleRate * 0.025);
-      data = new Float32Array(len);
-      for (let i = 0; i < len; i++) {
-        const t = i / sampleRate;
-        const amp = Math.exp(-t * 120);
-        // Fast sine sweep from ~180Hz down to ~60Hz
-        const phase = 2 * Math.PI * (60 * t + (180 / 80) * (1 - Math.exp(-t * 80)));
-        data[i] = Math.sin(phase) * amp;
-      }
-      return data;
-    }
     case 'snare': {
       // Mix of pitched body (~200Hz decaying) + noise burst
       len = Math.ceil(sampleRate * 0.08);
@@ -470,6 +452,55 @@ function generateImpulseBuffer(timbre, sampleRate) {
       }
       return data;
     }
+    case 'pop': {
+      // Short sine burst at ~500Hz with smooth Hann envelope — soft, round pulse
+      len = Math.ceil(sampleRate * 0.008);
+      data = new Float32Array(len);
+      for (let i = 0; i < len; i++) {
+        const t = i / sampleRate;
+        const env = 0.5 * (1 - Math.cos(2 * Math.PI * i / len)); // Hann window
+        data[i] = Math.sin(2 * Math.PI * 500 * t) * env;
+      }
+      return data;
+    }
+    case 'marimba': {
+      // Damped sine with a few harmonics — warm, woody, tonal
+      len = Math.ceil(sampleRate * 0.06);
+      data = new Float32Array(len);
+      const mBaseF = 300;
+      const mPartials = [1, 4, 10];       // marimba-like partial ratios (1, 4, 9.2 typical)
+      const mDecays   = [40, 80, 150];
+      const mAmps     = [1.0, 0.3, 0.1];
+      for (let i = 0; i < len; i++) {
+        const t = i / sampleRate;
+        // Soft attack: quick fade-in over first 1ms to avoid click
+        const attack = Math.min(t / 0.001, 1);
+        let sum = 0;
+        for (let p = 0; p < mPartials.length; p++) {
+          sum += Math.sin(2 * Math.PI * mBaseF * mPartials[p] * t) *
+                 Math.exp(-t * mDecays[p]) * mAmps[p];
+        }
+        data[i] = sum * attack * 0.7;
+      }
+      return data;
+    }
+    case 'drop': {
+      // Short downward sine sweep ~800→200Hz — water droplet sound
+      len = Math.ceil(sampleRate * 0.03);
+      data = new Float32Array(len);
+      const fHigh = 800, fLow = 200;
+      for (let i = 0; i < len; i++) {
+        const t = i / sampleRate;
+        const env = Math.exp(-t * 80) * Math.min(t / 0.001, 1);
+        // Exponential frequency sweep from fHigh to fLow
+        const tau = 0.008;
+        const freq = fLow + (fHigh - fLow) * Math.exp(-t / tau);
+        // Integrate frequency to get phase
+        const phase = 2 * Math.PI * (fLow * t + (fHigh - fLow) * tau * (1 - Math.exp(-t / tau)));
+        data[i] = Math.sin(phase) * env;
+      }
+      return data;
+    }
   }
 }
 
@@ -481,8 +512,8 @@ function createAudioEngine() {
   let masterGain = null;
   let limiter = null;
   let voices = [];
-  let currentRatio = [3, 2];
-  let currentTimbre = 'sine';
+  let currentRatio = [7, 6, 5, 4];
+  let currentTimbre = 'drop';
   let currentBaseFreq = 150;
   let running = false;
   // Cache impulse buffers per timbre
@@ -509,6 +540,7 @@ function createAudioEngine() {
     for (const v of voices) {
       try {
         if (v.osc) { v.osc.stop(); v.osc.disconnect(); }
+        if (v.filter) v.filter.disconnect();
         if (v.clickInterval != null) clearInterval(v.clickInterval);
         if (v.gain) v.gain.disconnect();
       } catch (_) {}
@@ -579,10 +611,23 @@ function createAudioEngine() {
         osc.frequency.value = freq;
         const gain = ctx.createGain();
         gain.gain.value = voiceGain;
-        osc.connect(gain);
-        gain.connect(masterGain);
-        osc.start(startTime);
-        voices.push({ osc, gain });
+        if (currentTimbre === 'sawtooth') {
+          const lp = ctx.createBiquadFilter();
+          lp.type = 'lowpass';
+          lp.frequency.value = Math.min(freq * 6, ctx.sampleRate / 2);
+          lp.Q.value = 0.5;
+          osc.connect(lp);
+          lp.connect(gain);
+          gain.gain.value = voiceGain * 0.7;
+          gain.connect(masterGain);
+          osc.start(startTime);
+          voices.push({ osc, gain, filter: lp });
+        } else {
+          osc.connect(gain);
+          gain.connect(masterGain);
+          osc.start(startTime);
+          voices.push({ osc, gain });
+        }
       }
     }
   }
@@ -601,6 +646,11 @@ function createAudioEngine() {
         const freq = baseFreq * (currentRatio[i] / rMin);
         if (voices[i].osc) {
           voices[i].osc.frequency.setTargetAtTime(freq, now, 0.02);
+        }
+        if (voices[i].filter) {
+          voices[i].filter.frequency.setTargetAtTime(
+            Math.min(freq * 6, ctx.sampleRate / 2), now, 0.02
+          );
         }
       }
     }
@@ -658,8 +708,9 @@ function visualizationEngine(canvas) {
     '#5accff', '#ccff5a', '#ff6a8a', '#6aff8a'
   ];
 
-  let ratio = [3, 2];
+  let ratio = [7, 6, 5, 4];
   let baseFreq = 150;
+  let audioPhaseOriginMs = performance.now(); // syncs pendulum phase to audio
   let zoomLevel = 1;
   let panX = 0, panY = 0;
   let isPanning = false, panStartX = 0, panStartY = 0, panOriginX = 0, panOriginY = 0;
@@ -667,6 +718,7 @@ function visualizationEngine(canvas) {
 
   function setMode(m) { mode = m; }
   function setState(r, f) { ratio = r; baseFreq = f; }
+  function syncAudioPhase() { audioPhaseOriginMs = performance.now(); }
   function resetZoom() { zoomLevel = 1; panX = 0; panY = 0; }
 
   function resize() {
@@ -1160,13 +1212,16 @@ function visualizationEngine(canvas) {
     const maxLen = h * 0.55;
     const spacing = w / (n + 1);
 
+    // Use audio-synced time so pendulum phase matches oscillator/impulse phase
+    const tAudio = (performance.now() - audioPhaseOriginMs) / 1000;
+
     const bobs = [];
 
     for (let i = 0; i < n; i++) {
       const freq = voiceFreq(i); // actual audio frequency in Hz
       const pivotX = spacing * (i + 1);
-      // Swing angle driven by the real audio frequency
-      const angle = Math.sin(2 * Math.PI * freq * t) * 0.8;
+      // Swing angle driven by the real audio frequency, synced to audio start
+      const angle = Math.sin(2 * Math.PI * freq * tAudio) * 0.8;
       const pendLen = maxLen * (0.6 + 0.4 * (1 - i / Math.max(n - 1, 1)));
       const bobX = pivotX + Math.sin(angle) * pendLen;
       const bobY = pivotY + Math.cos(angle) * pendLen;
@@ -1200,7 +1255,7 @@ function visualizationEngine(canvas) {
       c.globalAlpha = 0.15;
       c.lineWidth = 1;
       for (let s = 0; s <= 100; s++) {
-        const st = t - trailDur + (s / 100) * trailDur;
+        const st = tAudio - trailDur + (s / 100) * trailDur;
         const a = Math.sin(2 * Math.PI * freq * st) * 0.8;
         const tx = pivotX + Math.sin(a) * pendLen;
         const ty = pivotY + Math.cos(a) * pendLen;
@@ -1438,7 +1493,7 @@ function visualizationEngine(canvas) {
   function stop() { if (animId) { cancelAnimationFrame(animId); animId = null; } }
   window.addEventListener('resize', resize);
 
-  return { setMode, setState, start, stop, getMode: () => mode, resetZoom };
+  return { setMode, setState, syncAudioPhase, start, stop, getMode: () => mode, resetZoom };
 }
 
 // ============================================================
@@ -1582,7 +1637,7 @@ function uiController() {
   const urlMgr   = urlStateManager();
   const exporter = exportEngine();
 
-  let currentRatio = [3, 2];
+  let currentRatio = [7, 6, 5, 4];
   let currentBaseFreq = 150;
 
   const urlState = urlMgr.read();
@@ -1624,19 +1679,23 @@ function uiController() {
     ratioError.textContent = '';
     currentRatio = result.values;
     engine.setRatio(currentRatio);
+    if (engine.isRunning()) viz.syncAudioPhase();
     viz.setState(currentRatio, currentBaseFreq);
     syncURL();
   });
 
   timbreSelect.addEventListener('change', () => {
     engine.setTimbre(timbreSelect.value);
+    if (engine.isRunning()) viz.syncAudioPhase();
     syncURL();
   });
 
   freqSlider.addEventListener('input', () => {
     currentBaseFreq = sliderToFreq(parseFloat(freqSlider.value));
     freqValue.textContent = formatFreq(currentBaseFreq);
+    const wasImpulse = IMPULSE_TIMBRES.includes(timbreSelect.value);
     engine.updateFrequencies(currentBaseFreq);
+    if (engine.isRunning() && wasImpulse) viz.syncAudioPhase();
     viz.setState(currentRatio, currentBaseFreq);
     syncURL();
   });
@@ -1648,6 +1707,7 @@ function uiController() {
       startBtn.classList.remove('active');
     } else {
       engine.start();
+      viz.syncAudioPhase();
       startBtn.textContent = 'Stop';
       startBtn.classList.add('active');
     }
