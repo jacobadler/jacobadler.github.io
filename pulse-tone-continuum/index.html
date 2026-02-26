@@ -573,22 +573,30 @@ function createAudioEngine() {
     gain.connect(masterGain);
     const buf = getImpulseBuffer(timbre);
 
+    let currentFreq = freq;
+    let currentPitch = pitchRatio;
     let lastTrigger = ctx.currentTime;
-    scheduleImpulse(buf, gain, lastTrigger, pitchRatio);
+    scheduleImpulse(buf, gain, lastTrigger, currentPitch);
 
     const interval = setInterval(() => {
       if (!running) return;
       const now = ctx.currentTime;
-      const period = 1 / freq;
+      const period = 1 / currentFreq;
       while (lastTrigger + period <= now + 0.1) {
         lastTrigger += period;
         if (lastTrigger > now - 0.01) {
-          scheduleImpulse(buf, gain, Math.max(lastTrigger, now), pitchRatio);
+          scheduleImpulse(buf, gain, Math.max(lastTrigger, now), currentPitch);
         }
       }
     }, 50);
 
-    return { clickInterval: interval, gain, _freq: freq };
+    const voice = { clickInterval: interval, gain, _freq: freq };
+    voice.setFreq = function(newFreq, newPitch) {
+      currentFreq = newFreq;
+      currentPitch = newPitch;
+      voice._freq = newFreq;
+    };
+    return voice;
   }
 
   function rebuildOscillators() {
@@ -632,6 +640,8 @@ function createAudioEngine() {
     }
   }
 
+  const PORTAMENTO_TC = 0.08; // portamento time constant in seconds
+
   function updateFrequencies(baseFreq) {
     currentBaseFreq = baseFreq;
     if (!running || voices.length === 0) return;
@@ -639,17 +649,19 @@ function createAudioEngine() {
     const now = ctx.currentTime;
     const isImpulse = IMPULSE_TIMBRES.includes(currentTimbre);
 
-    if (isImpulse) {
-      rebuildOscillators();
-    } else {
-      for (let i = 0; i < voices.length; i++) {
-        const freq = baseFreq * (currentRatio[i] / rMin);
+    for (let i = 0; i < voices.length; i++) {
+      const freq = baseFreq * (currentRatio[i] / rMin);
+      if (isImpulse) {
+        if (voices[i].setFreq) {
+          voices[i].setFreq(freq, currentRatio[i] / rMin);
+        }
+      } else {
         if (voices[i].osc) {
-          voices[i].osc.frequency.setTargetAtTime(freq, now, 0.02);
+          voices[i].osc.frequency.setTargetAtTime(freq, now, PORTAMENTO_TC);
         }
         if (voices[i].filter) {
           voices[i].filter.frequency.setTargetAtTime(
-            Math.min(freq * 6, ctx.sampleRate / 2), now, 0.02
+            Math.min(freq * 6, ctx.sampleRate / 2), now, PORTAMENTO_TC
           );
         }
       }
